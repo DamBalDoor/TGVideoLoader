@@ -5,8 +5,12 @@ import { InputFile } from 'grammy'
 import { SAFE_UPLOAD_BYTES } from '../../constants.js'
 import { ProgressState } from '../../download/index.js'
 import { UserFacingError } from '../../errors.js'
+import { childLogger } from '../../logger.js'
 import { safeFilename } from '../../utils.js'
 import { dropJob, getJob } from '../jobs.js'
+
+const log = childLogger({ module: 'quality' })
+const EMPTY_KEYBOARD = { inline_keyboard: [] }
 
 export function registerQualityHandler(bot, { downloader, busy, config }) {
   bot.callbackQuery(/^q:/, async (ctx) => {
@@ -30,11 +34,7 @@ export function registerQualityHandler(bot, { downloader, busy, config }) {
     if (action === 'c') {
       dropJob(jobId)
       await ctx.answerCallbackQuery({ text: 'Отменил' })
-      try {
-        await ctx.editMessageText('Выбор качества отменён.')
-      } catch {
-        // ignore
-      }
+      await editOfferMessage(ctx, 'Выбор качества отменён.', { removeKeyboard: true })
       return
     }
 
@@ -51,6 +51,10 @@ export function registerQualityHandler(bot, { downloader, busy, config }) {
     }
 
     dropJob(jobId)
+    log.info(
+      { userId: job.userId, jobId, platform: job.offer.platform, selector: choice.selector, label: choice.label },
+      'quality chosen',
+    )
     await ctx.answerCallbackQuery({ text: choice.label })
     await downloadChoice(ctx, { downloader, busy, config, job, choice })
   })
@@ -62,19 +66,18 @@ async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
   const workdir = path.join(config.downloadsDir, `${userId}_${randomUUID().replaceAll('-', '')}`)
   busy.add(userId)
 
+  const initialStatus =
+    choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES
+      ? `${job.offer.platform}: файл больше 50 МБ — скачаю ${choice.label} и сожму.`
+      : `${job.offer.platform}: ${progress.text}`
+
+  await editOfferMessage(ctx, initialStatus, { removeKeyboard: true })
+
   let stopped = false
   const typing = keepTyping(ctx, job.chatId, () => stopped)
   const statusUpdates = refreshStatus(ctx, job.offer.platform, progress, () => stopped)
 
   try {
-    if (choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES) {
-      try {
-        await ctx.editMessageText(`${job.offer.platform}: файл больше 50 МБ — скачаю ${choice.label} и сожму.`)
-      } catch {
-        // ignore
-      }
-    }
-
     const video = await downloader.download({
       url: job.offer.url,
       platform: job.offer.platform,
@@ -89,35 +92,61 @@ async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
     })
 
     stopped = true
-    try {
-      await ctx.editMessageText(`${job.offer.platform}: отправляю в Telegram…`)
-    } catch {
-      // ignore
-    }
+    statusUpdates.cancel()
+    await editOfferMessage(ctx, `${job.offer.platform}: отправляю…`)
     await sendVideo(ctx, video)
-    try {
-      await ctx.deleteMessage()
-    } catch {
-      // ignore
-    }
+    log.info({ userId, platform: job.offer.platform, title: video.title }, 'video sent')
+    await ctx.deleteMessage().catch(() => {})
   } catch (error) {
     stopped = true
     const message =
       error instanceof UserFacingError
         ? error.userMessage
         : 'Что-то сломалось при скачивании. Попробуй ещё раз.'
-    if (!(error instanceof UserFacingError)) console.error(error)
-    try {
-      await ctx.editMessageText(message)
-    } catch {
-      // ignore
+    if (error instanceof UserFacingError) {
+      log.warn({ userId, platform: job.offer.platform, err: error }, 'download rejected')
+    } else {
+      log.error({ userId, platform: job.offer.platform, err: error }, 'download failed')
     }
+    await editOfferMessage(ctx, message, { removeKeyboard: true })
   } finally {
     stopped = true
     typing.cancel()
     statusUpdates.cancel()
     busy.delete(userId)
     await fs.rm(workdir, { recursive: true, force: true })
+  }
+}
+
+function isPhotoOffer(ctx) {
+  return Boolean(ctx.callbackQuery?.message?.photo?.length)
+}
+
+async function editOfferMessage(ctx, text, { removeKeyboard = false } = {}) {
+  const extra = removeKeyboard ? { reply_markup: EMPTY_KEYBOARD } : {}
+
+  try {
+    if (isPhotoOffer(ctx)) {
+      await ctx.editMessageCaption({ caption: text, ...extra })
+      return
+    }
+    await ctx.editMessageText(text, extra)
+  } catch (error) {
+    if (!removeKeyboard) return
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: EMPTY_KEYBOARD })
+    } catch {
+      // ignore
+    }
+    try {
+      if (isPhotoOffer(ctx)) {
+        await ctx.editMessageCaption({ caption: text })
+      } else {
+        await ctx.editMessageText(text)
+      }
+    } catch {
+      log.debug({ err: error }, 'offer message update failed')
+    }
   }
 }
 
@@ -135,11 +164,7 @@ function refreshStatus(ctx, platform, progress, isStopped) {
   const timer = setInterval(async () => {
     if (isStopped() || progress.text === last) return
     last = progress.text
-    try {
-      await ctx.editMessageText(`${platform}: ${progress.text}`)
-    } catch {
-      // ignore
-    }
+    await editOfferMessage(ctx, `${platform}: ${progress.text}`)
   }, 2000)
   return { cancel: () => clearInterval(timer) }
 }
@@ -158,7 +183,7 @@ async function sendVideo(ctx, video) {
   try {
     await ctx.replyWithVideo(new InputFile(video.path, filename), options)
   } catch (error) {
-    console.warn('replyWithVideo failed, falling back to document', error)
+    log.warn({ err: error }, 'replyWithVideo failed, sending as document')
     await ctx.replyWithDocument(new InputFile(video.path, filename), { caption })
   }
 }

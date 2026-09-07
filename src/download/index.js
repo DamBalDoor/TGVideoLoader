@@ -2,11 +2,15 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { SAFE_UPLOAD_BYTES, VIDEO_EXTENSIONS } from '../constants.js'
 import { UserFacingError, humanizeYtdlpError } from '../errors.js'
+import { childLogger } from '../logger.js'
 import { toInt, unwrapInfo } from '../utils.js'
 import { collectChoices } from './formats.js'
 import { getFfmpegPath, probeDuration, runFfmpeg } from './ffmpeg.js'
+import { pickThumbnailUrl } from './thumbnail.js'
 import { resolveVkUrl } from './vk.js'
 import { downloadVideo, extractInfo } from './ytdlp.js'
+
+const log = childLogger({ module: 'download' })
 
 export class ProgressState {
   constructor(text = 'Подключаюсь к сайту…') {
@@ -26,7 +30,7 @@ export class Downloader {
     return resolveVkUrl(url)
   }
 
-  async listFormats(url, platform) {
+  async listFormats(url, platform, { advanced = false } = {}) {
     const resolved = await this.resolveUrl(url, platform)
     let info
     try {
@@ -36,15 +40,19 @@ export class Downloader {
     }
     if (!info) throw new UserFacingError('По ссылке не нашлось видео.')
 
-    const choices = collectChoices(info)
+    const choices = collectChoices(info, { advanced })
     if (!choices.length) throw new UserFacingError('Не нашёл варианты качества для этого видео.')
+
+    log.info({ platform, title: info.title, choices: choices.length, advanced }, 'formats collected')
 
     return {
       url: resolved,
       platform,
       title: String(info.title || `Видео ${platform}`).trim(),
       duration: toInt(info.duration),
+      thumbnailUrl: pickThumbnailUrl(info),
       choices,
+      advancedMode: advanced,
     }
   }
 
@@ -66,6 +74,7 @@ export class Downloader {
       formatSelector ||
       `bv*[height<=${this.config.maxHeight}]+ba/b[height<=${this.config.maxHeight}]/bv*+ba/b`
 
+    log.info({ platform, selector, workdir }, 'download started')
     try {
       await downloadVideo(resolved, this.config, this.ffmpegPath, {
         output: path.join(workdir, '%(id)s.%(ext)s'),
@@ -89,6 +98,7 @@ export class Downloader {
 
     const stat = await fs.stat(videoPath)
     if (stat.size > SAFE_UPLOAD_BYTES) {
+      log.info({ platform, bytes: stat.size }, 'compressing for Telegram limit')
       progress.text = 'Сжимаю под лимит Telegram…'
       videoPath = await compress(videoPath, finalDuration, SAFE_UPLOAD_BYTES)
     }
@@ -108,8 +118,11 @@ export class Downloader {
   toUserError(error, platform, fallback) {
     if (error instanceof UserFacingError) return error
     const raw = error.raw || error.stderr || error.message || String(error)
-    if (raw) return new UserFacingError(humanizeYtdlpError(raw, platform))
-    console.error(error)
+    if (raw) {
+      log.warn({ platform, err: error, raw }, 'yt-dlp error')
+      return new UserFacingError(humanizeYtdlpError(raw, platform))
+    }
+    log.error({ platform, err: error }, 'unexpected download error')
     return new UserFacingError(fallback)
   }
 }

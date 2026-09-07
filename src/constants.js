@@ -25,6 +25,8 @@ export const HELP_TEXT = [
   '• TikTok',
   '',
   'Лимит Telegram для бота — 50 МБ. Варианты больше лимита помечу.',
+  '',
+  '/settings — обычный или расширенный выбор качества.',
 ].join('\n')
 
 export const PLATFORMS = {

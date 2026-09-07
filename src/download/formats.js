@@ -28,7 +28,18 @@ export function formatButtonText(choice) {
   return parts.join(' · ').slice(0, 64)
 }
 
-export function collectChoices(info) {
+export function formatSimpleButtonText(choice) {
+  const parts = [choice.label]
+  if (choice.sizeBytes) {
+    parts.push(`${choice.sizeIsEstimate ? '~' : ''}${humanSize(choice.sizeBytes)}`)
+  } else {
+    parts.push('размер ?')
+  }
+  if (choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES) parts.push('>50 МБ')
+  return parts.join(' · ').slice(0, 64)
+}
+
+export function collectChoices(info, { advanced = false } = {}) {
   const formats = (info.formats || []).filter((fmt) => fmt && typeof fmt === 'object')
   const duration = toFloat(info.duration)
   const videos = formats.filter(isVideo)
@@ -71,7 +82,40 @@ export function collectChoices(info) {
     if ((b.fps || 0) !== (a.fps || 0)) return (b.fps || 0) - (a.fps || 0)
     return (b.sizeBytes || 0) - (a.sizeBytes || 0)
   })
-  return choices.slice(0, 10)
+  if (advanced) return choices.slice(0, 10)
+  return simplifyChoices(choices)
+}
+
+export function simplifyChoices(choices) {
+  const withHeight = choices.filter((choice) => choice.height)
+  const pool = withHeight.length ? withHeight : choices
+
+  const byHeight = new Map()
+  for (const choice of pool) {
+    const key = choice.height || 0
+    const current = byHeight.get(key)
+    if (!current || defaultFormatScore(choice) > defaultFormatScore(current)) {
+      byHeight.set(key, choice)
+    }
+  }
+  return [...byHeight.values()]
+    .sort((a, b) => (b.height || 0) - (a.height || 0))
+    .slice(0, 8)
+}
+
+function defaultFormatScore(choice) {
+  const codec = choice.codec || ''
+  let codecScore = 0
+  if (codec === 'H.264') codecScore = 40
+  else if (codec === 'HEVC') codecScore = 30
+  else if (codec === 'VP9') codecScore = 10
+  else if (codec === 'AV1') codecScore = 5
+  else codecScore = 15
+
+  const extScore = ['mp4', 'm4v'].includes(choice.ext) ? 10 : 0
+  const widthScore = (choice.width || 0) / 10_000
+  const sizeScore = choice.sizeBytes && !choice.sizeIsEstimate ? 2 : 0
+  return codecScore + extScore + widthScore + sizeScore
 }
 
 function isVideo(fmt) {

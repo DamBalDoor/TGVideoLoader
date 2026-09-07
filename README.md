@@ -26,6 +26,8 @@ Telegram-бот на Node.js: кидаешь ссылку — бот показ�
    npm run dev
    ```
 
+   Логи пишет pino: в терминале — читаемый текст, иначе JSON. Уровень задаётся `LOG_LEVEL` в `.env` (`info` по умолчанию, `debug` — каждый апдейт Telegram).
+
 4. Напиши боту `/start` и отправь ссылку.
 
 ## Структура
@@ -34,13 +36,28 @@ Telegram-бот на Node.js: кидаешь ссылку — бот показ�
 src/
   index.js                 точка входа
   config.js                .env
+  logger.js                pino, child loggers по модулям
   constants.js
   urls.js                  разбор ссылок и площадок
   errors.js
+  logger.js                pino
   lock.js                  один запущенный процесс
   bot/                     Telegram: хендлеры, кнопки, сессии выбора
   download/                yt-dlp, ffmpeg, VK-эмбеды, качества
 ```
+
+## Логирование
+
+Бот пишет логи через [pino](https://getpino.io/). По умолчанию в терминале — читаемый вывод (`pino-pretty`), в production — JSON.
+
+Переменные в `.env`:
+
+```
+LOG_LEVEL=info
+LOG_PRETTY=1
+```
+
+Уровни: `fatal`, `error`, `warn`, `info`, `debug`, `trace`. Для отладки поставь `LOG_LEVEL=debug`. JSON вместо pretty: `LOG_PRETTY=0`.
 
 ## Если Instagram, TikTok или YouTube не качаются
 

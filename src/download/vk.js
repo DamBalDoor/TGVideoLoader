@@ -1,4 +1,7 @@
 import { UserFacingError } from '../errors.js'
+import { childLogger } from '../logger.js'
+
+const log = childLogger({ module: 'vk' })
 
 const VIDEO_ID_RE = /(?:video|clip)(-?\d+_\d+)/i
 const IFRAME_SRC_RE = /<iframe[^>]+?\bsrc\s*=\s*["'](\/\/[^"']+|https?:\/\/[^"']+)["']/gi
@@ -25,12 +28,12 @@ export async function resolveVkUrl(url) {
 
     const embed = firstExternalIframe(html)
     if (embed) {
-      console.info(`VK ${videoId} is an external embed: ${embed}`)
+      log.info({ videoId, embed }, 'VK external embed')
       return embed
     }
   } catch (error) {
     if (error instanceof UserFacingError) throw error
-    console.warn(`VK resolve failed for ${videoId}:`, error.message)
+    log.warn({ videoId, err: error }, 'VK resolve failed')
   }
   return url
 }

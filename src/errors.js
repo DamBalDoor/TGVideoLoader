@@ -33,5 +33,8 @@ export function humanizeYtdlpError(raw, platform) {
   if (text.includes('keyerror') && text.includes('params')) {
     return `${platform}: не нашёл прямую ссылку на файл. Если ролик открывается только после входа, добавь cookies в .env.`
   }
+  if (text.includes('no such option')) {
+    return `${platform}: внутренняя ошибка загрузчика. Перезапусти бота или обнови yt-dlp.`
+  }
   return `Не удалось скачать видео с ${platform}. Проверь, что ролик открывается в браузере.`
 }

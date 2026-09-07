@@ -55,7 +55,6 @@ function buildFlags(config, ffmpegPath, extra = {}) {
     noPlaylist: true,
     noWarnings: true,
     restrictFilenames: true,
-    overwrites: true,
     retries: 3,
     fragmentRetries: 5,
     socketTimeout: 30,

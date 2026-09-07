@@ -2,8 +2,10 @@ import fs from 'node:fs'
 import { spawn } from 'node:child_process'
 import ffmpegStaticModule from 'ffmpeg-static'
 import { UserFacingError } from '../errors.js'
+import { childLogger } from '../logger.js'
 
 const ffmpegStatic = ffmpegStaticModule?.default ?? ffmpegStaticModule
+const log = childLogger({ module: 'ffmpeg' })
 
 export function getFfmpegPath() {
   if (!ffmpegStatic || typeof ffmpegStatic !== 'string' || !fs.existsSync(ffmpegStatic)) {
@@ -44,7 +46,7 @@ export function runFfmpeg(args) {
         resolve()
         return
       }
-      console.error('ffmpeg failed:', stderr.slice(-800))
+      log.error({ code, stderr: stderr.slice(-800) }, 'ffmpeg failed')
       reject(new UserFacingError('Не получилось обработать видео. Попробуй другое качество или другую ссылку.'))
     })
   })
