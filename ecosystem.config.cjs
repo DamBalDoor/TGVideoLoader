@@ -1,26 +1,26 @@
 module.exports = {
   apps: [
     {
-      name: 'tgloader',
-      script: 'src/index.js',
-      cwd: __dirname,
-      interpreter: 'node',
-      instances: 1,
-      exec_mode: 'fork',
-      autorestart: true,
-      watch: false,
-      max_restarts: 10,
-      min_uptime: '10s',
-      restart_delay: 5000,
-      kill_timeout: 15000,
-      max_memory_restart: '512M',
-      error_file: 'logs/pm2-error.log',
-      out_file: 'logs/pm2-out.log',
-      merge_logs: true,
-      time: true,
+      name: 'tgloader', // Название проекта
+      script: 'src/index.js', // Путь к файлу запуска
+      cwd: __dirname, // Текущая директория
+      interpreter: 'node', // Интерпретатор Node.js
+      instances: 1, // Количество инстансов
+      exec_mode: 'fork', // Режим выполнения
+      autorestart: true, // Автоматический перезапуск
+      watch: false, // Отслеживать изменения в файлах
+      max_restarts: 10, // Максимальное количество перезапусков
+      min_uptime: '10s', // Минимальное время работы
+      restart_delay: 5000, // Задержка перезапуска
+      kill_timeout: 15000, // Таймаут убийства процесса
+      max_memory_restart: '512M', // Максимальный объем памяти для перезапуска
+      error_file: 'logs/pm2-error.log', // Путь к файлу ошибок
+      out_file: 'logs/pm2-out.log', // Путь к файлу вывода
+      merge_logs: true, // Объединять логи
+      time: true, // Включить время в логах
       env: {
-        NODE_ENV: 'production',
-        LOG_PRETTY: '0',
+        NODE_ENV: 'production', // Среда выполнения
+        LOG_PRETTY: '0', // Форматирование логов
       },
     },
   ],
