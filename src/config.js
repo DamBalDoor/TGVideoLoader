@@ -47,6 +47,12 @@ export function loadConfig() {
     (process.env.ANALYTICS_DB_PATH || path.join('data', 'analytics.db')).trim(),
   )
 
+  const ytdlpAutoUpdate = (process.env.YTDLP_AUTO_UPDATE || '1').trim() !== '0'
+  const ytdlpUpdateIntervalMs =
+    Math.max(1, Number.parseInt(process.env.YTDLP_UPDATE_INTERVAL_HOURS || '24', 10) || 24) * 3_600_000
+  const ytdlpUpdateTimeoutMs =
+    Math.max(10, Number.parseInt(process.env.YTDLP_UPDATE_TIMEOUT_SEC || '120', 10) || 120) * 1000
+
   return {
     botToken,
     allowedUserIds: parseIds(process.env.ALLOWED_USER_IDS),
@@ -59,5 +65,8 @@ export function loadConfig() {
     reportTimezone,
     reportHour,
     reportMinute,
+    ytdlpAutoUpdate,
+    ytdlpUpdateIntervalMs,
+    ytdlpUpdateTimeoutMs,
   }
 }

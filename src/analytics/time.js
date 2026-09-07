@@ -35,6 +35,37 @@ export function getYesterdayDateKey(timeZone, date = new Date()) {
   return shiftDateKey(getDateKeyInTz(timeZone, date), -1)
 }
 
+export function getPeriodRange(period, timeZone, date = new Date()) {
+  const today = getDateKeyInTz(timeZone, date)
+  if (period === 'week') {
+    return { fromDate: shiftDateKey(today, -6), toDate: today, period: 'week' }
+  }
+  return { fromDate: today, toDate: today, period: 'today' }
+}
+
+export function iterDateKeys(fromDate, toDate) {
+  const rows = []
+  let current = fromDate
+  while (current <= toDate) {
+    rows.push(current)
+    current = shiftDateKey(current, 1)
+  }
+  return rows
+}
+
+export function formatPeriodTitle(fromDate, toDate) {
+  if (fromDate === toDate) return formatRussianDate(fromDate)
+  const [fy, fm, fd] = fromDate.split('-').map(Number)
+  const [ty, tm, td] = toDate.split('-').map(Number)
+  if (fy === ty && fm === tm) return `${fd}–${td} ${MONTH_NAMES[fm - 1]} ${fy}`
+  return `${formatRussianDate(fromDate)} – ${formatRussianDate(toDate)}`
+}
+
+export function formatShortDate(dateKey) {
+  const [, month, day] = dateKey.split('-')
+  return `${day}.${month}`
+}
+
 export function monthPrefix(dateKey) {
   return dateKey.slice(0, 7)
 }

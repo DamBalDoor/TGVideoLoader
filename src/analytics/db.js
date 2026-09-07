@@ -73,3 +73,12 @@ export function queryCount(db, sql, params = []) {
   const row = queryOne(db, sql, params)
   return Number(row?.c ?? 0)
 }
+
+export function queryAll(db, sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  const rows = []
+  while (stmt.step()) rows.push(stmt.getAsObject())
+  stmt.free()
+  return rows
+}

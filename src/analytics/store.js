@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { getDateKeyInTz, monthPrefix, yearPrefix } from './time.js'
-import { queryCount, queryOne } from './db.js'
+import { getDateKeyInTz, iterDateKeys, monthPrefix, yearPrefix } from './time.js'
+import { queryAll, queryCount, queryOne } from './db.js'
 
 export class AnalyticsStore {
   constructor(conn, { reportTimezone }) {
@@ -101,6 +101,105 @@ export class AnalyticsStore {
         dayAudio: downloadsDayAudio,
         month: downloadsMonth,
         year: downloadsYear,
+      },
+    }
+  }
+
+  buildExtendedPayload(fromDate, toDate) {
+    const uniqueUsers = queryCount(
+      this.conn.db,
+      `SELECT COUNT(DISTINCT user_id) AS c FROM daily_visits
+       WHERE visit_date >= ? AND visit_date <= ?`,
+      [fromDate, toDate],
+    )
+
+    const downloadsTotal = queryCount(
+      this.conn.db,
+      `SELECT COUNT(*) AS c FROM downloads WHERE download_date >= ? AND download_date <= ?`,
+      [fromDate, toDate],
+    )
+    const downloadsVideo = queryCount(
+      this.conn.db,
+      `SELECT COUNT(*) AS c FROM downloads
+       WHERE download_date >= ? AND download_date <= ? AND media_type = 'video'`,
+      [fromDate, toDate],
+    )
+    const downloadsAudio = queryCount(
+      this.conn.db,
+      `SELECT COUNT(*) AS c FROM downloads
+       WHERE download_date >= ? AND download_date <= ? AND media_type = 'audio'`,
+      [fromDate, toDate],
+    )
+
+    const topPlatforms = queryAll(
+      this.conn.db,
+      `SELECT platform, COUNT(*) AS count FROM downloads
+       WHERE download_date >= ? AND download_date <= ? AND platform IS NOT NULL AND platform != ''
+       GROUP BY platform ORDER BY count DESC, platform ASC LIMIT 5`,
+      [fromDate, toDate],
+    ).map((row) => ({ platform: String(row.platform), count: Number(row.count) }))
+
+    const usersByDate = new Map(
+      queryAll(
+        this.conn.db,
+        `SELECT visit_date AS date, COUNT(DISTINCT user_id) AS users FROM daily_visits
+         WHERE visit_date >= ? AND visit_date <= ?
+         GROUP BY visit_date`,
+        [fromDate, toDate],
+      ).map((row) => [String(row.date), Number(row.users)]),
+    )
+
+    const downloadsByDate = new Map(
+      queryAll(
+        this.conn.db,
+        `SELECT download_date AS date, COUNT(*) AS downloads FROM downloads
+         WHERE download_date >= ? AND download_date <= ?
+         GROUP BY download_date`,
+        [fromDate, toDate],
+      ).map((row) => [String(row.date), Number(row.downloads)]),
+    )
+
+    const daily = iterDateKeys(fromDate, toDate).map((date) => ({
+      date,
+      users: usersByDate.get(date) || 0,
+      downloads: downloadsByDate.get(date) || 0,
+    }))
+
+    const month = monthPrefix(toDate)
+    const year = yearPrefix(toDate)
+
+    return {
+      fromDate,
+      toDate,
+      uniqueUsers,
+      downloads: {
+        total: downloadsTotal,
+        video: downloadsVideo,
+        audio: downloadsAudio,
+      },
+      topPlatforms,
+      daily,
+      totals: {
+        uniqueUsersMonth: queryCount(
+          this.conn.db,
+          'SELECT COUNT(DISTINCT user_id) AS c FROM daily_visits WHERE visit_date LIKE ?',
+          [`${month}%`],
+        ),
+        uniqueUsersYear: queryCount(
+          this.conn.db,
+          'SELECT COUNT(DISTINCT user_id) AS c FROM daily_visits WHERE visit_date LIKE ?',
+          [`${year}%`],
+        ),
+        downloadsMonth: queryCount(
+          this.conn.db,
+          'SELECT COUNT(*) AS c FROM downloads WHERE download_date LIKE ?',
+          [`${month}%`],
+        ),
+        downloadsYear: queryCount(
+          this.conn.db,
+          'SELECT COUNT(*) AS c FROM downloads WHERE download_date LIKE ?',
+          [`${year}%`],
+        ),
       },
     }
   }
