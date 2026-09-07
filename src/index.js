@@ -1,4 +1,4 @@
-import { createAnalytics, startReportScheduler } from './analytics/index.js'
+import { createAppStores, startReportScheduler } from './analytics/index.js'
 import { createBot } from './bot/index.js'
 import { loadConfig } from './config.js'
 import { maybeUpdateYtdlp } from './download/ytdlp-update.js'
@@ -11,8 +11,8 @@ try {
   acquireLock()
   const config = loadConfig()
   await maybeUpdateYtdlp(config, log.child({ module: 'ytdlp-update' }))
-  const analytics = await createAnalytics(config)
-  const bot = createBot(config, log, analytics)
+  const { analytics, settings } = await createAppStores(config)
+  const bot = createBot(config, log, { analytics, settings })
   startReportScheduler({ bot, analytics, config, log: log.child({ module: 'analytics' }) })
 
   log.info('TGLoader started')

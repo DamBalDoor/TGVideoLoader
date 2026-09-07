@@ -34,6 +34,12 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id INTEGER PRIMARY KEY,
+  advanced_mode INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
 `
 
 export async function openDatabase(dbPath) {

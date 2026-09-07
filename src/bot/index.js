@@ -12,7 +12,7 @@ import { analyticsMiddleware } from './middlewares/analytics.js'
 import { authMiddleware } from './middlewares/auth.js'
 import { loggingMiddleware } from './middlewares/logging.js'
 
-export function createBot(config, log, analytics) {
+export function createBot(config, log, { analytics, settings }) {
   const botLog = log.child({ module: 'bot' })
   const bot = new Bot(config.botToken, {
     client: { timeoutSeconds: UPLOAD_TIMEOUT_SEC },
@@ -25,9 +25,9 @@ export function createBot(config, log, analytics) {
   if (analytics) bot.use(analyticsMiddleware(analytics))
   registerCommandHandlers(bot)
   registerAnalyticsHandler(bot, { config, analytics })
-  registerSettingsHandlers(bot)
+  registerSettingsHandlers(bot, { settings })
   registerQualityHandler(bot, { downloader, busy, config, analytics })
-  registerLinkHandler(bot, { downloader, busy, config })
+  registerLinkHandler(bot, { downloader, busy, config, settings })
 
   bot.catch((error) => {
     logError(botLog, error.error ?? error, 'bot middleware error', {

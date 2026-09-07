@@ -2,12 +2,11 @@ import { UserFacingError } from '../../errors.js'
 import { childLogger } from '../../logger.js'
 import { findVideoUrl } from '../../urls.js'
 import { sendOfferMessage } from '../offer-message.js'
-import { getUserSettings } from '../settings.js'
 import { createJob } from '../jobs.js'
 
 const log = childLogger({ module: 'link' })
 
-export function registerLinkHandler(bot, { downloader, busy, config }) {
+export function registerLinkHandler(bot, { downloader, busy, config, settings }) {
   bot.on(['message:text', 'message:caption'], async (ctx) => {
     const text = ctx.message.text || ''
     if (text.startsWith('/')) return
@@ -30,7 +29,7 @@ export function registerLinkHandler(bot, { downloader, busy, config }) {
     log.info({ userId, platform: found.platform, url: found.url }, 'listing formats')
     const status = await ctx.reply(`${found.platform}: смотрю доступные качества…`)
     try {
-      const { advancedMode } = getUserSettings(userId)
+      const { advancedMode } = settings.get(userId)
       const offer = await downloader.listFormats(found.url, found.platform, { advanced: advancedMode })
       const job = createJob({
         userId,

@@ -1,6 +1,5 @@
 import { InlineKeyboard } from 'grammy'
 import { childLogger } from '../../logger.js'
-import { getUserSettings, setAdvancedMode } from '../settings.js'
 
 const log = childLogger({ module: 'settings' })
 
@@ -11,6 +10,8 @@ export function settingsText({ advancedMode }) {
       '',
       'Показываю все кодеки, ширину и размер для каждого варианта.',
       'Чтобы вернуться к простому списку — выключи режим кнопкой ниже.',
+      '',
+      'Настройка сохраняется между перезапусками бота.',
     ].join('\n')
   }
   return [
@@ -18,6 +19,8 @@ export function settingsText({ advancedMode }) {
     '',
     'Показываю только разные разрешения в стандартном формате (H.264 / mp4).',
     'Нужны VP9, AV1 и прочие детали — включи расширенный режим.',
+    '',
+    'Настройка сохраняется между перезапусками бота.',
   ].join('\n')
 }
 
@@ -31,11 +34,11 @@ export function settingsKeyboard({ advancedMode }) {
   return keyboard
 }
 
-export function registerSettingsHandlers(bot) {
+export function registerSettingsHandlers(bot, { settings }) {
   bot.command('settings', async (ctx) => {
     const userId = ctx.from?.id
     if (userId == null) return
-    const current = getUserSettings(userId)
+    const current = settings.get(userId)
     log.debug({ userId, advancedMode: current.advancedMode }, '/settings')
     await ctx.reply(settingsText(current), { reply_markup: settingsKeyboard(current) })
   })
@@ -47,7 +50,7 @@ export function registerSettingsHandlers(bot) {
       return
     }
     const enabled = (ctx.callbackQuery.data || '').endsWith(':1')
-    const next = setAdvancedMode(userId, enabled)
+    const next = settings.setAdvancedMode(userId, enabled)
     log.info({ userId, advancedMode: next.advancedMode }, 'settings updated')
     await ctx.answerCallbackQuery({
       text: enabled ? 'Расширенный режим включён' : 'Обычный режим',
