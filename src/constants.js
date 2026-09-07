@@ -5,6 +5,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export const ROOT_DIR = path.resolve(__dirname, '..')
 export const DOWNLOADS_DIR = path.join(ROOT_DIR, 'downloads')
+export const DATA_DIR = path.join(ROOT_DIR, 'data')
 
 export const TELEGRAM_MAX_BYTES = 50 * 1024 * 1024
 export const SAFE_UPLOAD_BYTES = 49 * 1024 * 1024

@@ -12,7 +12,7 @@ import { dropJob, getJob } from '../jobs.js'
 const log = childLogger({ module: 'quality' })
 const EMPTY_KEYBOARD = { inline_keyboard: [] }
 
-export function registerQualityHandler(bot, { downloader, busy, config }) {
+export function registerQualityHandler(bot, { downloader, busy, config, analytics }) {
   bot.callbackQuery(/^q:/, async (ctx) => {
     const parts = (ctx.callbackQuery.data || '').split(':')
     if (parts.length !== 3) {
@@ -56,11 +56,11 @@ export function registerQualityHandler(bot, { downloader, busy, config }) {
       'quality chosen',
     )
     await ctx.answerCallbackQuery({ text: choice.label })
-    await downloadChoice(ctx, { downloader, busy, config, job, choice })
+    await downloadChoice(ctx, { downloader, busy, config, analytics, job, choice })
   })
 }
 
-async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
+async function downloadChoice(ctx, { downloader, busy, config, analytics, job, choice }) {
   const userId = job.userId
   const isAudio = choice.mediaType === 'audio'
   const progress = new ProgressState(isAudio ? 'Скачиваю аудио…' : `Скачиваю ${choice.label}…`)
@@ -105,9 +105,11 @@ async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
     if (isAudio) {
       await sendAudio(ctx, result)
       log.info({ userId, platform: job.offer.platform, title: result.title }, 'audio sent')
+      analytics?.recordDownload(userId, { mediaType: 'audio', platform: job.offer.platform })
     } else {
       await sendVideo(ctx, result)
       log.info({ userId, platform: job.offer.platform, title: result.title }, 'video sent')
+      analytics?.recordDownload(userId, { mediaType: 'video', platform: job.offer.platform })
     }
     await ctx.deleteMessage().catch(() => {})
   } catch (error) {

@@ -76,3 +76,20 @@ COOKIES_FROM_BROWSER=chrome
 ## Ограничения
 
 Telegram Bot API принимает файлы до 50 МБ. Длинные видео бот сжимает; совсем большие отправить не сможет.
+
+## Аналитика
+
+Бот считает уникальных пользователей и скачивания, хранит данные в SQLite (`data/analytics.db`).
+
+Раз в сутки в 05:00 (по `REPORT_TIMEZONE`) отправляет отчёт в ЛС владельцу (`ADMIN_USER_ID`), **только если цифры изменились** с прошлого уведомления.
+
+В `.env`:
+
+```
+ADMIN_USER_ID=123456789
+REPORT_TIMEZONE=Asia/Bangkok
+REPORT_HOUR=5
+REPORT_MINUTE=0
+```
+
+Свой Telegram id можно узнать у [@userinfobot](https://t.me/userinfobot).
