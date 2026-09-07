@@ -23,14 +23,16 @@ export function acquireLock() {
     }
   }
   process.on('exit', release)
-  process.on('SIGINT', () => {
-    release()
-    process.exit(0)
-  })
-  process.on('SIGTERM', () => {
-    release()
-    process.exit(0)
-  })
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGUSR2']) {
+    try {
+      process.on(signal, () => {
+        release()
+        process.exit(0)
+      })
+    } catch {
+      // Windows may not support SIGUSR2
+    }
+  }
 }
 
 function isRunning(pid) {
