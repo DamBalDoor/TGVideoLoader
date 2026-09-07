@@ -6,6 +6,7 @@ node_modules/
 .vscode/
 downloads/
 data/
+logs/
 cookies.txt
 *.session
 .bot.lock
