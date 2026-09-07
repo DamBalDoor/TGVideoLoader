@@ -1,0 +1,11 @@
+.env
+.venv/
+venv/
+node_modules/
+.idea/
+.vscode/
+downloads/
+cookies.txt
+*.session
+.bot.lock
+
