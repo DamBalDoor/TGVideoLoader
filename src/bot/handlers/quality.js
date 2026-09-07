@@ -46,7 +46,7 @@ export function registerQualityHandler(bot, { downloader, busy, config }) {
     }
 
     if (busy.has(job.userId)) {
-      await ctx.answerCallbackQuery({ text: 'Подожди, предыдущее видео ещё качается.', show_alert: true })
+      await ctx.answerCallbackQuery({ text: 'Подожди, предыдущий запрос ещё выполняется.', show_alert: true })
       return
     }
 
@@ -62,23 +62,25 @@ export function registerQualityHandler(bot, { downloader, busy, config }) {
 
 async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
   const userId = job.userId
-  const progress = new ProgressState(`Скачиваю ${choice.label}…`)
+  const isAudio = choice.mediaType === 'audio'
+  const progress = new ProgressState(isAudio ? 'Скачиваю аудио…' : `Скачиваю ${choice.label}…`)
   const workdir = path.join(config.downloadsDir, `${userId}_${randomUUID().replaceAll('-', '')}`)
   busy.add(userId)
 
   const initialStatus =
-    choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES
+    !isAudio && choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES
       ? `${job.offer.platform}: файл больше 50 МБ — скачаю ${choice.label} и сожму.`
       : `${job.offer.platform}: ${progress.text}`
 
   await editOfferMessage(ctx, initialStatus, { removeKeyboard: true })
 
   let stopped = false
-  const typing = keepTyping(ctx, job.chatId, () => stopped)
+  const chatAction = isAudio ? 'upload_audio' : 'upload_video'
+  const typing = keepTyping(ctx, job.chatId, () => stopped, chatAction)
   const statusUpdates = refreshStatus(ctx, job.offer.platform, progress, () => stopped)
 
   try {
-    const video = await downloader.download({
+    const downloadArgs = {
       url: job.offer.url,
       platform: job.offer.platform,
       workdir,
@@ -87,15 +89,26 @@ async function downloadChoice(ctx, { downloader, busy, config, job, choice }) {
       alreadyResolved: true,
       title: job.offer.title,
       duration: job.offer.duration,
-      width: choice.width,
-      height: choice.height,
-    })
+    }
+
+    const result = isAudio
+      ? await downloader.downloadAudio(downloadArgs)
+      : await downloader.download({
+          ...downloadArgs,
+          width: choice.width,
+          height: choice.height,
+        })
 
     stopped = true
     statusUpdates.cancel()
     await editOfferMessage(ctx, `${job.offer.platform}: отправляю…`)
-    await sendVideo(ctx, video)
-    log.info({ userId, platform: job.offer.platform, title: video.title }, 'video sent')
+    if (isAudio) {
+      await sendAudio(ctx, result)
+      log.info({ userId, platform: job.offer.platform, title: result.title }, 'audio sent')
+    } else {
+      await sendVideo(ctx, result)
+      log.info({ userId, platform: job.offer.platform, title: result.title }, 'video sent')
+    }
     await ctx.deleteMessage().catch(() => {})
   } catch (error) {
     stopped = true
@@ -150,12 +163,12 @@ async function editOfferMessage(ctx, text, { removeKeyboard = false } = {}) {
   }
 }
 
-function keepTyping(ctx, chatId, isStopped) {
+function keepTyping(ctx, chatId, isStopped, action = 'upload_video') {
   const timer = setInterval(() => {
     if (isStopped()) return
-    ctx.api.sendChatAction(chatId, 'upload_video').catch(() => {})
+    ctx.api.sendChatAction(chatId, action).catch(() => {})
   }, 4000)
-  ctx.api.sendChatAction(chatId, 'upload_video').catch(() => {})
+  ctx.api.sendChatAction(chatId, action).catch(() => {})
   return { cancel: () => clearInterval(timer) }
 }
 
@@ -167,6 +180,22 @@ function refreshStatus(ctx, platform, progress, isStopped) {
     await editOfferMessage(ctx, `${platform}: ${progress.text}`)
   }, 2000)
   return { cancel: () => clearInterval(timer) }
+}
+
+async function sendAudio(ctx, audio) {
+  const caption = audio.title.slice(0, 1024)
+  const filename = safeFilename(audio.title, audio.path)
+  const options = {
+    caption,
+    duration: audio.duration ?? undefined,
+    title: audio.title.slice(0, 64),
+  }
+  try {
+    await ctx.replyWithAudio(new InputFile(audio.path, filename), options)
+  } catch (error) {
+    log.warn({ err: error }, 'replyWithAudio failed, sending as document')
+    await ctx.replyWithDocument(new InputFile(audio.path, filename), { caption })
+  }
 }
 
 async function sendVideo(ctx, video) {

@@ -13,9 +13,11 @@ export const UPLOAD_TIMEOUT_SEC = 600
 
 export const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi'])
 export const VIDEO_EXTS = new Set(['mp4', 'webm', 'mkv', 'mov', 'm4v', 'avi'])
+export const AUDIO_EXTENSIONS = new Set(['.m4a', '.mp3', '.mp4', '.webm', '.ogg', '.opus', '.wav', '.aac'])
 
 export const HELP_TEXT = [
   'Пришли ссылку на видео — покажу доступные качества, размер и разрешение, а после выбора скачаю и отправлю файл.',
+  'Можно выбрать только аудио.',
   '',
   'Работает с:',
   '• YouTube',
@@ -23,6 +25,9 @@ export const HELP_TEXT = [
   '• Rutube',
   '• Instagram (Reels и посты)',
   '• TikTok',
+  '• X (Twitter)',
+  '• OK.ru',
+  '• Pinterest',
   '',
   'Лимит Telegram для бота — 50 МБ. Варианты больше лимита помечу.',
   '',
@@ -41,4 +46,7 @@ export const PLATFORMS = {
   Rutube: ['rutube.ru', 'rutub.ru'],
   Instagram: ['instagram.com', 'instagr.am'],
   TikTok: ['tiktok.com', 'tiktokv.com', 'tiktokv.us', 'tiktok.com.tr'],
+  X: ['twitter.com', 'x.com', 'mobile.twitter.com', 'mobile.x.com'],
+  OK: ['ok.ru', 'odnoklassniki.ru', 'm.ok.ru'],
+  Pinterest: ['pinterest.com', 'pin.it', 'pinterest.ru'],
 }

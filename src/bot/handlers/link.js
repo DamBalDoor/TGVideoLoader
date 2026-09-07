@@ -15,7 +15,7 @@ export function registerLinkHandler(bot, { downloader, busy, config }) {
     const found = findVideoUrl(ctx.message)
     if (!found) {
       await ctx.reply(
-        'Не вижу поддерживаемую ссылку. Пришли URL с YouTube, VK, Rutube, Instagram или TikTok.',
+        'Не вижу поддерживаемую ссылку. Пришли URL с YouTube, VK, Rutube, Instagram, TikTok, X, OK.ru или Pinterest.',
       )
       return
     }

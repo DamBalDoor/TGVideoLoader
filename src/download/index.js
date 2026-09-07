@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { SAFE_UPLOAD_BYTES, VIDEO_EXTENSIONS } from '../constants.js'
+import { SAFE_UPLOAD_BYTES, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS } from '../constants.js'
 import { UserFacingError, humanizeYtdlpError } from '../errors.js'
 import { childLogger } from '../logger.js'
 import { toInt, unwrapInfo } from '../utils.js'
-import { collectChoices } from './formats.js'
+import { collectChoices, collectAudioChoices } from './formats.js'
 import { getFfmpegPath, probeDuration, runFfmpeg } from './ffmpeg.js'
 import { pickThumbnailUrl } from './thumbnail.js'
 import { resolveVkUrl } from './vk.js'
@@ -40,10 +40,15 @@ export class Downloader {
     }
     if (!info) throw new UserFacingError('По ссылке не нашлось видео.')
 
-    const choices = collectChoices(info, { advanced })
+    const videoChoices = collectChoices(info, { advanced })
+    const audioChoices = collectAudioChoices(info, { advanced })
+    const choices = [...videoChoices, ...audioChoices]
     if (!choices.length) throw new UserFacingError('Не нашёл варианты качества для этого видео.')
 
-    log.info({ platform, title: info.title, choices: choices.length, advanced }, 'formats collected')
+    log.info(
+      { platform, title: info.title, choices: choices.length, audio: audioChoices.length, advanced },
+      'formats collected',
+    )
 
     return {
       url: resolved,
@@ -112,6 +117,59 @@ export class Downloader {
       width: width ?? null,
       height: height ?? null,
       thumbnail,
+      mediaType: 'video',
+    }
+  }
+
+  async downloadAudio({
+    url,
+    platform,
+    workdir,
+    progress,
+    formatSelector,
+    alreadyResolved = false,
+    title,
+    duration,
+  }) {
+    await fs.mkdir(workdir, { recursive: true })
+    const resolved = alreadyResolved ? url : await this.resolveUrl(url, platform, progress)
+    const selector = formatSelector || 'bestaudio/best'
+
+    log.info({ platform, selector, workdir }, 'audio download started')
+    try {
+      await downloadVideo(resolved, this.config, this.ffmpegPath, {
+        output: path.join(workdir, '%(id)s.%(ext)s'),
+        format: selector,
+        onProgress: (percent) => {
+          progress.text = `Скачиваю аудио… ${Math.round(percent)}%`
+        },
+      })
+    } catch (error) {
+      throw this.toUserError(error, platform, 'Не удалось скачать аудио. Проверь ссылку и попробуй ещё раз.')
+    }
+
+    let audioPath = await pickDownloadedFile(workdir, AUDIO_EXTENSIONS)
+    if (!audioPath) throw new UserFacingError('Аудио скачалось, но файл не найден. Попробуй другую ссылку.')
+
+    progress.text = 'Готовлю аудио для Telegram…'
+    audioPath = await toTelegramAudio(audioPath)
+
+    const probedDuration = await probeDuration(audioPath)
+    const finalDuration = probedDuration != null ? Math.round(probedDuration) : duration ?? null
+
+    const stat = await fs.stat(audioPath)
+    if (stat.size > SAFE_UPLOAD_BYTES) {
+      throw new UserFacingError(
+        'Аудио слишком большое для Telegram-бота (лимит 50 МБ). Попробуй более короткую запись.',
+      )
+    }
+
+    return {
+      path: audioPath,
+      title: String(title || `Аудио ${platform}`).trim(),
+      platform,
+      duration: finalDuration,
+      mediaType: 'audio',
     }
   }
 
@@ -127,18 +185,28 @@ export class Downloader {
   }
 }
 
-async function pickDownloadedFile(folder) {
+async function pickDownloadedFile(folder, extensions = VIDEO_EXTENSIONS) {
   const names = await fs.readdir(folder)
   const files = []
   for (const name of names) {
     const full = path.join(folder, name)
     const stat = await fs.stat(full)
-    if (stat.isFile() && VIDEO_EXTENSIONS.has(path.extname(name).toLowerCase())) {
+    if (stat.isFile() && extensions.has(path.extname(name).toLowerCase())) {
       files.push({ full, size: stat.size })
     }
   }
   files.sort((a, b) => b.size - a.size)
   return files[0]?.full || null
+}
+
+async function toTelegramAudio(src) {
+  const ext = path.extname(src).toLowerCase()
+  if (ext === '.m4a' || ext === '.mp3') return src
+
+  const dst = src.replace(path.extname(src), '.m4a')
+  await runFfmpeg(['-y', '-i', src, '-vn', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', dst])
+  await fs.unlink(src).catch(() => {})
+  return dst
 }
 
 async function toMp4(src) {

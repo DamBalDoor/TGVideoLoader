@@ -39,6 +39,19 @@ export function formatSimpleButtonText(choice) {
   return parts.join(' · ').slice(0, 64)
 }
 
+export function formatAudioButtonText(choice) {
+  const parts = ['🎵']
+  if (choice.abr) parts.push(`${choice.abr} kbps`)
+  parts.push(choice.codec || choice.ext || 'audio')
+  if (choice.sizeBytes) {
+    parts.push(`${choice.sizeIsEstimate ? '~' : ''}${humanSize(choice.sizeBytes)}`)
+  } else {
+    parts.push('размер ?')
+  }
+  if (choice.sizeBytes && choice.sizeBytes > SAFE_UPLOAD_BYTES) parts.push('>50 МБ')
+  return parts.join(' · ').slice(0, 64)
+}
+
 export function collectChoices(info, { advanced = false } = {}) {
   const formats = (info.formats || []).filter((fmt) => fmt && typeof fmt === 'object')
   const duration = toFloat(info.duration)
@@ -101,6 +114,45 @@ export function simplifyChoices(choices) {
   return [...byHeight.values()]
     .sort((a, b) => (b.height || 0) - (a.height || 0))
     .slice(0, 8)
+}
+
+export function collectAudioChoices(info, { advanced = false } = {}) {
+  const formats = (info.formats || []).filter((fmt) => fmt && typeof fmt === 'object').filter(isAudio)
+  if (!formats.length) return []
+
+  const duration = toFloat(info.duration)
+  const grouped = new Map()
+
+  for (const fmt of formats) {
+    const formatId = String(fmt.format_id || '').trim()
+    if (!formatId) continue
+
+    const abr = Math.round(toFloat(fmt.abr || fmt.tbr) || 0)
+    const ext = String(fmt.ext || 'm4a')
+    const key = advanced ? `${abr}:${ext}:${formatId}` : 'best'
+    const [sizeBytes, sizeIsEstimate] = bytesOf(fmt, duration)
+
+    const choice = {
+      selector: formatId,
+      mediaType: 'audio',
+      height: null,
+      width: null,
+      fps: null,
+      ext,
+      codec: audioCodecLabel(fmt.acodec, ext),
+      abr: abr || null,
+      sizeBytes,
+      sizeIsEstimate,
+      label: advanced && abr ? `${abr} kbps` : 'Аудио',
+    }
+
+    const current = grouped.get(key)
+    if (!current || audioChoiceScore(choice) > audioChoiceScore(current)) grouped.set(key, choice)
+  }
+
+  const choices = [...grouped.values()].sort((a, b) => (b.abr || 0) - (a.abr || 0))
+  if (advanced) return choices.slice(0, 5)
+  return choices.length ? [choices[0]] : []
 }
 
 function defaultFormatScore(choice) {
@@ -192,6 +244,21 @@ function asChoice(video, audio, duration) {
     sizeIsEstimate: estimate,
     label: choiceLabel(video, height),
   }
+}
+
+function audioCodecLabel(acodec, ext) {
+  const raw = String(acodec || '').toLowerCase()
+  if (raw.includes('mp4a') || raw.startsWith('aac')) return 'AAC'
+  if (raw.includes('opus')) return 'Opus'
+  if (raw.includes('mp3') || raw.includes('mpeg')) return 'MP3'
+  if (raw.includes('vorbis')) return 'Vorbis'
+  return (ext || 'audio').toUpperCase()
+}
+
+function audioChoiceScore(choice) {
+  const extScore = ['m4a', 'mp4'].includes(choice.ext) ? 2 : choice.ext === 'mp3' ? 1 : 0
+  const codecScore = choice.codec === 'AAC' ? 2 : choice.codec === 'MP3' ? 1 : 0
+  return extScore * 1e6 + codecScore * 1e3 + (choice.abr || 0) + (choice.sizeBytes || 0) / 1e6
 }
 
 function codecLabel(vcodec, ext) {

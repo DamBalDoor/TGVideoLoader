@@ -2,7 +2,7 @@
 
 Telegram-бот на Node.js: кидаешь ссылку — бот показывает качества, разрешение и размер, затем скачивает выбранный вариант.
 
-Поддерживает YouTube, VK, Rutube, Instagram и TikTok.
+Поддерживает YouTube, VK, Rutube, Instagram, TikTok, X (Twitter), OK.ru и Pinterest.
 
 ## Запуск
 
