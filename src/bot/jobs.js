@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { JOB_TTL_MS } from '../constants.js'
 
 const jobs = new Map()
@@ -15,7 +16,7 @@ function purge() {
 
 export function createJob({ userId, chatId, offer }) {
   purge()
-  const jobId = crypto.randomUUID().replaceAll('-', '').slice(0, 8)
+  const jobId = randomUUID().replaceAll('-', '').slice(0, 8)
   const previous = userJobs.get(userId)
   if (previous) jobs.delete(previous)
   const job = {
